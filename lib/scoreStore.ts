@@ -11,6 +11,7 @@ export async function saveScore(score: MarketScore): Promise<void> {
     date: score.timestamp.slice(0, 10),
     score: score.composite,
     status: score.status,
+    ...(score.btcPrice !== null ? { price: score.btcPrice } : {}),
   };
   await kvLPush(KV_KEYS.history, JSON.stringify(point));
   await kvLTrim(KV_KEYS.history, 0, HISTORY_LENGTH - 1);

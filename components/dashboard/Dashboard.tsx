@@ -10,6 +10,7 @@ import { TopDrivers } from './TopDrivers';
 import { MetricGrid } from './MetricGrid';
 import { EventCalendar } from './EventCalendar';
 import { ScoreInterpretation } from './ScoreInterpretation';
+import { PredictionHistory } from './PredictionHistory';
 import { ShareButton } from './ShareButton';
 import { ShortcutsModal } from './ShortcutsModal';
 import { LastUpdated } from '@/components/ui/LastUpdated';
@@ -163,6 +164,13 @@ export function Dashboard() {
             </ErrorBoundary>
           </section>
         )}
+
+        {/* Prediction accuracy tracker (click to expand) */}
+        <section className="mb-8">
+          <ErrorBoundary>
+            <PredictionHistory history={history} />
+          </ErrorBoundary>
+        </section>
 
         {/* Metric grid */}
         <section className="mb-8">

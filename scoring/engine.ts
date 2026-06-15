@@ -121,6 +121,7 @@ export async function computeMarketScore(): Promise<MarketScore> {
     topNegativeDrivers: topDrivers(allSignals, false),
     availableSignals,
     totalSignals: TOTAL_SIGNALS,
+    btcPrice: price.data?.price ?? technical.snapshot.price ?? null,
     interpretation: '',
     timestamp: now.toISOString(),
     nextUpdate: nextUpdateIso(now),

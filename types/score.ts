@@ -73,6 +73,8 @@ export interface MarketScore {
   availableSignals: number;
   /** Total number of signals tracked by the engine. */
   totalSignals: number;
+  /** BTC price (USD) captured at score time, for prediction tracking. */
+  btcPrice: number | null;
   /** Auto-generated plain-English interpretation of the score. */
   interpretation: string;
   timestamp: string;
@@ -84,4 +86,29 @@ export interface ScoreHistoryPoint {
   date: string;
   score: number;
   status: MarketStatus;
+  /** BTC close/price (USD) recorded with this score. Optional for older points. */
+  price?: number;
+}
+
+export type PredictionDirection = 'up' | 'down' | 'neutral';
+export type PredictionResult = 'correct' | 'wrong' | 'no-call' | 'pending';
+
+/** A score-derived directional call evaluated against the next day's price. */
+export interface PredictionRecord {
+  date: string;
+  score: number;
+  status: MarketStatus;
+  direction: PredictionDirection;
+  priceAtScore: number | null;
+  nextPrice: number | null;
+  actualChangePct: number | null;
+  result: PredictionResult;
+}
+
+export interface PredictionSummary {
+  records: PredictionRecord[];
+  correct: number;
+  wrong: number;
+  /** Hit rate over evaluated directional calls (0-100), or null if none. */
+  accuracy: number | null;
 }
