@@ -1,59 +1,55 @@
 /**
- * Macro market data: DXY, NASDAQ (QQQ), S&P 500 (SPY), WTI crude.
+ * Macro market data: DXY, NASDAQ, S&P 500, WTI crude.
  *
- * NASDAQ/S&P use Alpha Vantage (ALPHA_VANTAGE_API_KEY). DXY and WTI use FRED
- * (FRED_API_KEY). When a key is missing or a request fails we return a neutral
+ * Uses Stooq's keyless daily CSV endpoint (no API key required), so these work
+ * out of the box like Binance/CoinGecko. On failure we return a neutral
  * baseline flagged as stale.
  */
-import { fetchJson, errorMessage } from '@/lib/utils';
+import { fetchText, errorMessage } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import { ok, stale } from '@/lib/serviceResult';
-import { fetchFredSeries, hasFredKey } from '@/lib/fred';
 import type { ServiceResult } from '@/types/api';
 import type { SeriesChange } from '@/types/macro';
 
 const NEUTRAL: SeriesChange = { latest: 0, prior: 0, changePct: 0 };
 
+/** values: newest-first daily closes. Compare latest vs ~5 trading days ago. */
 function changeFrom(values: number[]): SeriesChange {
-  // values: newest-first array; compare latest vs ~5 trading days ago.
   const latest = values[0];
   const prior = values[Math.min(5, values.length - 1)];
   const changePct = prior === 0 ? 0 : ((latest - prior) / prior) * 100;
   return { latest, prior, changePct };
 }
 
-interface AvDailyResponse {
-  'Time Series (Daily)'?: Record<string, { '4. close': string }>;
-  Note?: string;
-  Information?: string;
-}
+/**
+ * Fetch daily closes from Stooq as a newest-first array.
+ * CSV shape: `Date,Open,High,Low,Close,Volume` (ascending date).
+ */
+async function fetchStooqCloses(symbol: string): Promise<number[]> {
+  const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(symbol)}&i=d`;
+  const text = await fetchText(url, { revalidate: 21600 });
 
-async function fetchAlphaVantageDaily(symbol: string): Promise<number[]> {
-  const key = process.env.ALPHA_VANTAGE_API_KEY;
-  if (!key) throw new Error('ALPHA_VANTAGE_API_KEY not configured');
-
-  const url =
-    `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY` +
-    `&symbol=${symbol}&outputsize=compact&apikey=${key}`;
-  const res = await fetchJson<AvDailyResponse>(url, { revalidate: 21600 });
-
-  const series = res['Time Series (Daily)'];
-  if (!series) {
-    throw new Error(res.Note ?? res.Information ?? 'Alpha Vantage rate-limited');
+  const lines = text.trim().split('\n');
+  if (lines.length < 7 || !lines[0].toLowerCase().startsWith('date')) {
+    throw new Error('Stooq returned no usable data');
   }
 
-  return Object.keys(series)
-    .sort((a, b) => (a < b ? 1 : -1)) // newest first
-    .map((date) => Number(series[date]['4. close']));
+  const closes: number[] = [];
+  for (let i = 1; i < lines.length; i += 1) {
+    const close = Number(lines[i].split(',')[4]);
+    if (!Number.isNaN(close)) closes.push(close);
+  }
+  if (closes.length < 6) throw new Error('Stooq: insufficient rows');
+
+  return closes.reverse(); // newest-first
 }
 
-async function alphaVantageChange(
+async function stooqChange(
   symbol: string,
   label: string,
 ): Promise<ServiceResult<SeriesChange>> {
   try {
-    const values = await fetchAlphaVantageDaily(symbol);
-    if (values.length < 6) throw new Error('insufficient series length');
+    const values = await fetchStooqCloses(symbol);
     return ok(changeFrom(values));
   } catch (err) {
     logger.warn(`macro.${label} fallback`, { err: errorMessage(err) });
@@ -61,37 +57,22 @@ async function alphaVantageChange(
   }
 }
 
+/** NASDAQ Composite. */
 export function getNasdaq(): Promise<ServiceResult<SeriesChange>> {
-  return alphaVantageChange('QQQ', 'getNasdaq');
+  return stooqChange('^ndq', 'getNasdaq');
 }
 
+/** S&P 500 index. */
 export function getSp500(): Promise<ServiceResult<SeriesChange>> {
-  return alphaVantageChange('SPY', 'getSp500');
+  return stooqChange('^spx', 'getSp500');
 }
 
-async function fredChange(
-  seriesId: string,
-  label: string,
-): Promise<ServiceResult<SeriesChange>> {
-  if (!hasFredKey()) {
-    return stale<SeriesChange>(NEUTRAL, 'FRED_API_KEY not configured');
-  }
-  try {
-    const obs = await fetchFredSeries(seriesId, 12);
-    if (obs.length < 6) throw new Error('insufficient series length');
-    return ok(changeFrom(obs.map((o) => o.value)));
-  } catch (err) {
-    logger.warn(`macro.${label} fallback`, { err: errorMessage(err) });
-    return stale<SeriesChange>(NEUTRAL, errorMessage(err));
-  }
-}
-
-/** US Dollar Index proxy via FRED broad dollar index (DTWEXBGS). */
+/** ICE US Dollar Index (DXY) futures. */
 export function getDxy(): Promise<ServiceResult<SeriesChange>> {
-  return fredChange('DTWEXBGS', 'getDxy');
+  return stooqChange('dx.f', 'getDxy');
 }
 
-/** WTI crude oil spot via FRED (DCOILWTICO). */
+/** WTI light crude oil futures. */
 export function getWti(): Promise<ServiceResult<SeriesChange>> {
-  return fredChange('DCOILWTICO', 'getWti');
+  return stooqChange('cl.f', 'getWti');
 }

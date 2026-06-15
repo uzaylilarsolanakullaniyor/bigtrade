@@ -49,6 +49,32 @@ export async function fetchJson<T>(
   }
 }
 
+/**
+ * Fetch raw text (e.g. CSV) with a timeout. Throws on non-2xx or timeout.
+ */
+export async function fetchText(
+  url: string,
+  options: RequestInit & { timeoutMs?: number; revalidate?: number } = {},
+): Promise<string> {
+  const { timeoutMs = 10_000, revalidate, ...init } = options;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal: controller.signal,
+      next: revalidate !== undefined ? { revalidate } : undefined,
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} for ${url}`);
+    }
+    return await response.text();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Safely read an error message from an unknown thrown value. */
 export function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
