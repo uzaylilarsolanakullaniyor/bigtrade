@@ -1,0 +1,14 @@
+{
+  "extends": "next/core-web-vitals",
+  "ignorePatterns": [
+    "node_modules/",
+    ".next/",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "jest.config.js",
+    "*.config.js"
+  ],
+  "rules": {
+    "@next/next/no-img-element": "off"
+  }
+}
