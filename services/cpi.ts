@@ -120,19 +120,25 @@ async function fromFred(): Promise<CpiData> {
 }
 
 export async function getCpi(): Promise<ServiceResult<CpiData>> {
+  let lastError = 'CPI unavailable';
+
+  // Prefer FRED when a key is configured (reliable from cloud IPs).
+  if (hasFredKey()) {
+    try {
+      return ok(await fromFred());
+    } catch (fredErr) {
+      lastError = errorMessage(fredErr);
+      logger.warn('cpi.getCpi FRED failed', { err: lastError });
+    }
+  }
+
+  // Keyless BLS public API.
   try {
     return ok(await fromBls());
   } catch (blsErr) {
-    logger.warn('cpi.getCpi BLS failed', { err: errorMessage(blsErr) });
-    if (hasFredKey()) {
-      try {
-        return ok(await fromFred());
-      } catch (fredErr) {
-        logger.warn('cpi.getCpi FRED fallback failed', {
-          err: errorMessage(fredErr),
-        });
-      }
-    }
-    return stale<CpiData>(NEUTRAL_BASELINE, errorMessage(blsErr));
+    lastError = errorMessage(blsErr);
+    logger.warn('cpi.getCpi BLS failed', { err: lastError });
   }
+
+  return stale<CpiData>(NEUTRAL_BASELINE, lastError);
 }
