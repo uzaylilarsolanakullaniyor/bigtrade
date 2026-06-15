@@ -75,9 +75,16 @@ export const KV_KEYS = {
 
 export const HISTORY_LENGTH = 30;
 
-/** Binance endpoints. */
+/**
+ * Binance endpoints.
+ *
+ * Spot REST defaults to `data-api.binance.vision` — Binance's public market
+ * data mirror, which (unlike `api.binance.com`) is NOT geo-blocked from US
+ * cloud IPs like Vercel's. Override with NEXT_PUBLIC_BINANCE_BASE_URL if you
+ * proxy through your own region.
+ */
 export const BINANCE_BASE_URL =
-  process.env.NEXT_PUBLIC_BINANCE_BASE_URL ?? 'https://api.binance.com';
+  process.env.NEXT_PUBLIC_BINANCE_BASE_URL ?? 'https://data-api.binance.vision';
 export const BINANCE_FUTURES_BASE_URL =
   process.env.NEXT_PUBLIC_BINANCE_FUTURES_BASE_URL ?? 'https://fapi.binance.com';
 export const FEAR_GREED_URL =
